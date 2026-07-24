@@ -1,3 +1,68 @@
+# Filipino Cookbook API
+
+Slim Framework + PHP + MySQL API for Filipino dishes, with Bearer-token authentication.
+
+## Configuration / Getting Started
+
+1. Clone this repository and open it in your editor.
+2. Install PHP dependencies from the project root:
+
+```bash
+composer install
+```
+
+3. Copy the example config file and edit the real values locally:
+
+```bash
+copy config.example.php config.php
+```
+
+*(On macOS/Linux: `cp config.example.php config.php`.)*
+
+4. In `config.php`, set your MySQL host, database name, username, password, and `API_TOKEN`.  
+   Do **not** commit `config.php` — it is listed in `.gitignore`. Only `config.example.php` (placeholders) belongs in the repo.
+5. Import the SQL database (see **Database Setup** below).
+6. Serve the project with XAMPP/Apache (or another PHP host) so `public/` is reachable in the browser.
+
+## Base URL
+
+Local XAMPP example (adjust the folder name if your project path differs):
+
+```text
+http://localhost/filipino-cookbook-api/public
+```
+
+Examples:
+
+| Purpose | Full URL |
+|---------|----------|
+| Welcome (no token) | `http://localhost/filipino-cookbook-api/public/` |
+| List foods (token required) | `http://localhost/filipino-cookbook-api/public/api/foods` |
+| Search foods | `http://localhost/filipino-cookbook-api/public/api/foods/search/Ado` |
+
+In Thunder Client / Postman, store this as `{{baseUrl}}` and call paths like `{{baseUrl}}/api/foods`.
+
+## Authentication
+
+- All routes under `/api/...` require a Bearer token.
+- The public welcome route `GET /` does **not** require a token.
+- Send the token in the `Authorization` header:
+
+```http
+Authorization: Bearer YOUR_API_TOKEN_HERE
+```
+
+- The expected token value is whatever you set as `API_TOKEN` in your local `config.php` (or the `API_TOKEN` environment variable).  
+  Use the same value in Thunder Client/Postman. Do not publish real tokens in the README or commits.
+- Missing or invalid token → `401` with:
+
+```json
+{
+  "status": "error",
+  "message": "Unauthorized access. Valid API token is required."
+}
+```
+
 ## Database Setup
 
 - **Database name:** `filipino_cookbook_api`
@@ -62,7 +127,7 @@ All three endpoints require the same Bearer token as the rest of the `/api` grou
 
 ```http
 GET /api/foods/category/Soup
-Authorization: Bearer dmmmsu-cookbook-token-2026
+Authorization: Bearer YOUR_API_TOKEN_HERE
 ```
 
 **Example successful response (`200 OK`):**
@@ -151,7 +216,7 @@ Authorization: Bearer dmmmsu-cookbook-token-2026
 
 ```http
 GET /api/foods/origin/Bicol%20Region
-Authorization: Bearer dmmmsu-cookbook-token-2026
+Authorization: Bearer YOUR_API_TOKEN_HERE
 ```
 
 **Example successful response (`200 OK`):**
@@ -224,7 +289,7 @@ Authorization: Bearer dmmmsu-cookbook-token-2026
 
 ```http
 GET /api/ingredients/26/foods
-Authorization: Bearer dmmmsu-cookbook-token-2026
+Authorization: Bearer YOUR_API_TOKEN_HERE
 ```
 
 *(Ingredient ID `26` is Garlic in the sample dataset.)*
@@ -306,7 +371,7 @@ Authorization: Bearer dmmmsu-cookbook-token-2026
 
 ```http
 POST /api/foods
-Authorization: Bearer dmmmsu-cookbook-token-2026
+Authorization: Bearer YOUR_API_TOKEN_HERE
 Content-Type: application/json
 ```
 
@@ -333,7 +398,7 @@ Content-Type: application/json
 
 ```http
 POST /api/foods
-Authorization: Bearer dmmmsu-cookbook-token-2026
+Authorization: Bearer YOUR_API_TOKEN_HERE
 Content-Type: application/json
 ```
 
@@ -401,18 +466,20 @@ What changed inside that file:
 
 ### 4. Testing Instructions
 
-Use **Thunder Client** (VS Code/Cursor) or **Postman**. Replace the base URL if your XAMPP/vhost path differs (examples below assume `http://localhost/filipino-cookbook-api/public`).
+Use **Thunder Client** (VS Code/Cursor) or **Postman**. Set `{{baseUrl}}` to the value in **Base URL** above (default example: `http://localhost/filipino-cookbook-api/public`).
 
 **Token header (required for every `/api` request):**
 
 | Header | Value |
 |--------|--------|
-| `Authorization` | `Bearer dmmmsu-cookbook-token-2026` |
+| `Authorization` | `Bearer YOUR_API_TOKEN_HERE` |
+
+*(Replace `YOUR_API_TOKEN_HERE` with the `API_TOKEN` from your local `config.php`.)*
 
 **Steps for another student:**
 
 1. Import or create a new request collection named “Filipino Cookbook API — Enhancements”.
-2. Set the collection (or request) header: `Authorization: Bearer dmmmsu-cookbook-token-2026`.
+2. Set the collection (or request) header: `Authorization: Bearer YOUR_API_TOKEN_HERE` (same value as in `config.php`).
 3. Confirm MySQL is running and the `filipino_cookbook_api` database is imported.
 4. Test the **search route fix** (must not be treated as `{id}`):
    - `GET {{baseUrl}}/api/foods/search/Ado` → expect Adobo (and similar) with `200`.
