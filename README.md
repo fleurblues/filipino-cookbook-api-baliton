@@ -507,7 +507,7 @@ Use **Thunder Client** (VS Code/Cursor) or **Postman**. Set `{{baseUrl}}` to the
 
 ### 5. Screenshots of Successful Testing
 
-Capture and paste screenshots below after you run the tests in Thunder Client or Postman.
+Screenshots from Thunder Client / Postman are stored under `docs/screenshots/` and linked below.
 
 **Screenshot 1: GET /api/foods/search/Ado — successful search result**  
 ![Thunder Client GET /api/foods/search/Ado returning 200 with Adobo and related matches](docs/screenshots/screenshot-01-search-ado.png)

@@ -840,8 +840,6 @@ Screenshots from Thunder Client / Postman are stored under `docs/screenshots/` a
 
 ## 12. Developer Information
 
-> **Fill in before submission / final commit:**
-
 | Field | Value |
 |-------|--------|
 | Student Name | `FLORIZA MHAE S. BALITON` |
