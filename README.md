@@ -104,6 +104,19 @@ mysql -u root -p filipino_cookbook_api < database/filipino_foods_relational.sql
 
 This section documents the optional GET endpoints and security improvements added on top of the base Filipino Cookbook API.
 
+### Recent additions (food counts, random food, rate limiting)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/foods/random` | One randomly selected food (404 if none) |
+| `GET` | `/api/categories/counts` | Each category with `food_count` (`COUNT` / `GROUP BY`) |
+
+Also: stronger path/body sanitization, positive-integer ID parsing, and per-IP rate limiting (default 120 req / 60s; `429` when exceeded). Token expiration is **not** implemented — auth is a static Bearer `API_TOKEN`, not JWT.
+
+Full request/response examples: see [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md) sections **9.6b** and **9.7b**.
+
+---
+
 ### 1. New Endpoints Added
 
 All three endpoints require the same Bearer token as the rest of the `/api` group and return the same food object shape used by `GET /api/foods` and `GET /api/foods/{id}`:
@@ -541,3 +554,12 @@ Screenshots from Thunder Client / Postman are stored under `docs/screenshots/` a
 
 **Screenshot 11: Generic 500 error — no SQL/stack details exposed**  
 ![Thunder Client /api request returning 500 with only a generic error message and no SQL or stack trace](docs/screenshots/screenshot-11-generic-500.png)
+
+**Screenshot 12: GET /api/foods/random — random Filipino food**  
+![Insomnia GET /api/foods/random returning 200 with a randomly selected food and ingredients](docs/screenshots/screenshot-12-foods-random.png)
+
+**Screenshot 13: GET /api/categories/counts — foods per category**  
+![Insomnia GET /api/categories/counts returning 200 with category_id, category_name, and food_count](docs/screenshots/screenshot-13-categories-counts.png)
+
+**Screenshot 14: Rate limiting — 429 Too Many Requests**  
+![Insomnia GET /api/foods returning 429 Too Many Requests when the rate limit is exceeded](docs/screenshots/screenshot-14-rate-limit-429.png)

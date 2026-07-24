@@ -16,7 +16,7 @@ The Filipino Cookbook API is a secured RESTful web service that provides structu
 
 **Intended users:** Students and developers building API clients for coursework or demos; anyone integrating Filipino cookbook data into an application.
 
-**Main functions:** List and retrieve foods; search by name; filter by category, origin, or ingredient; list categories and ingredients; create/update/delete foods with validated payloads.
+**Main functions:** List and retrieve foods; search by name; filter by category, origin, or ingredient; get a random food; list categories (with optional food counts) and ingredients; create/update/delete foods with validated payloads.
 
 **Technologies used:** PHP, Slim Framework 4, MySQL (PDO), Composer, Apache/XAMPP (typical local host), Thunder Client / Postman for testing, Git / GitHub for version control.
 
@@ -28,13 +28,16 @@ The Filipino Cookbook API is a secured RESTful web service that provides structu
 - Bearer-token protection on all `/api` routes
 - List all foods with nested ingredients
 - Get a single food by ID
+- Get a randomly selected food
 - Search foods by name (`LIKE` match)
 - Filter foods by category name
 - Filter foods by origin name
 - List all categories and all ingredients
+- Get food counts per category (`COUNT` / `GROUP BY`)
 - List foods that use a given ingredient ID
 - Create, update, and delete foods
-- Input validation and sanitization on write endpoints (`food_name`, `instructions`, FK checks for category/origin/ingredients)
+- Input validation and sanitization on write endpoints and path parameters (`food_name`, `instructions`, FK checks for category/origin/ingredients; positive integer ID checks)
+- Per-IP rate limiting (default 120 requests / 60 seconds; configurable; returns `429`)
 - Secure error handling (generic `500` responses; debug details only when `APP_DEBUG` is enabled)
 - Configuration via `config.php` / environment variables (see `config.example.php`)
 
@@ -72,7 +75,7 @@ copy config.example.php config.php
 *(On macOS/Linux: `cp config.example.php config.php`.)*
 
 4. In `config.php`, set MySQL host, database name, username, password, charset, and `API_TOKEN`.  
-   You may instead set environment variables: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_CHARSET`, `API_TOKEN`.  
+   You may instead set environment variables: `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_CHARSET`, `API_TOKEN`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW`.  
    Do **not** commit `config.php` (it is in `.gitignore`). Only `config.example.php` with placeholders belongs in the repo.
 5. Import the SQL database (see **Database Setup** below).
 6. Serve the project so `public/` is reachable (e.g. place/copy the project under XAMPP `htdocs` and start Apache + MySQL).
@@ -164,6 +167,10 @@ Authorization: Bearer YOUR_API_TOKEN_HERE
 ```
 
 Do not publish real tokens in documentation or commits.
+
+**Token expiration:** Not applicable. This API uses a static shared Bearer token (`API_TOKEN`), not JWT or session tokens with claims/TTL. Expiration would require introducing a new authentication system and is intentionally not implemented.
+
+**Rate limiting:** All routes (including `/`) are subject to per-IP rate limiting. Defaults are 120 requests per 60 seconds (`RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` in `config.example.php` or environment variables). Set `RATE_LIMIT_MAX=0` to disable. Exceeding the limit returns **429** with a `Retry-After` header.
 
 ---
 
@@ -488,6 +495,59 @@ Authorization: Bearer YOUR_API_TOKEN_HERE
 
 ---
 
+### 9.6b `GET /api/foods/random`
+
+**Description:** Returns one randomly selected food (with ingredients). Uses `ORDER BY RAND() LIMIT 1`.
+
+**Required headers:** `Authorization: Bearer ...`
+
+**Example request:**
+
+```http
+GET {{baseUrl}}/api/foods/random
+Authorization: Bearer YOUR_API_TOKEN_HERE
+```
+
+**Example success response (`200`):**
+
+```json
+{
+  "food_id": 1,
+  "food_name": "Adobo",
+  "category_name": "Main Dish",
+  "origin_name": "Philippines",
+  "instructions": "Marinate the meat with soy sauce, vinegar, garlic, bay leaves, and peppercorn. Simmer until the meat becomes tender and the sauce is reduced.",
+  "ingredients": [
+    "Bay leaves",
+    "Chicken or pork",
+    "Cooking oil",
+    "Garlic",
+    "Peppercorn",
+    "Soy sauce",
+    "Vinegar"
+  ]
+}
+```
+
+**Example error response (`404`) — empty database:**
+
+```json
+{
+  "status": "error",
+  "message": "No foods available"
+}
+```
+
+| Status | When |
+|--------|------|
+| `200` | A food was selected |
+| `401` | Missing/invalid token |
+| `404` | No foods in the database |
+| `429` | Rate limit exceeded |
+| `500` | Unexpected server/DB error |
+
+---
+
 ### 9.7 `GET /api/categories`
 
 **Description:** Returns all rows from `categories`, ordered by `category_id`.
@@ -528,6 +588,51 @@ Authorization: Bearer YOUR_API_TOKEN_HERE
 |--------|------|
 | `200` | Success |
 | `401` | Missing/invalid token |
+| `500` | Unexpected server/DB error |
+
+---
+
+### 9.7b `GET /api/categories/counts`
+
+**Description:** Returns every category with the number of foods in that category (`COUNT` + `GROUP BY`). Categories with zero foods are included (`food_count: 0`).
+
+**Required headers:** `Authorization: Bearer ...`
+
+**Example request:**
+
+```http
+GET {{baseUrl}}/api/categories/counts
+Authorization: Bearer YOUR_API_TOKEN_HERE
+```
+
+**Example success response (`200`):**
+
+```json
+[
+  { "category_id": 1, "category_name": "Appetizer", "food_count": 1 },
+  { "category_id": 2, "category_name": "Dessert", "food_count": 2 },
+  { "category_id": 3, "category_name": "Grilled Dish", "food_count": 1 },
+  { "category_id": 4, "category_name": "Main Dish", "food_count": 5 },
+  { "category_id": 5, "category_name": "Noodle Dish", "food_count": 1 },
+  { "category_id": 6, "category_name": "Soup", "food_count": 3 },
+  { "category_id": 7, "category_name": "Vegetable Dish", "food_count": 2 }
+]
+```
+
+**Example error response (`401`):**
+
+```json
+{
+  "status": "error",
+  "message": "Unauthorized access. Valid API token is required."
+}
+```
+
+| Status | When |
+|--------|------|
+| `200` | Success |
+| `401` | Missing/invalid token |
+| `429` | Rate limit exceeded |
 | `500` | Unexpected server/DB error |
 
 ---
@@ -794,7 +899,8 @@ Authorization: Bearer YOUR_API_TOKEN_HERE
 | `201` | Created | Successful `POST /api/foods` |
 | `400` | Bad Request | Invalid/empty path params; `validateFoodPayload()` failures on POST/PUT (e.g. short `food_name`, missing `instructions`, non-integer or non-existent `category_id` / `origin_id` / `ingredient_id`) |
 | `401` | Unauthorized | Missing `Authorization` header, non-Bearer format, or token ≠ `API_TOKEN` |
-| `404` | Not Found | Food/category/origin/ingredient not found; empty search/filter results where coded to return 404 |
+| `404` | Not Found | Food/category/origin/ingredient not found; empty search/filter results where coded to return 404; empty DB on `/api/foods/random` |
+| `429` | Too Many Requests | Client IP exceeded `RATE_LIMIT_MAX` within `RATE_LIMIT_WINDOW` seconds |
 | `500` | Internal Server Error | Caught `Throwable` in route handlers → generic `{ "status": "error", "message": "An unexpected server error occurred." }` (no SQL/stack when `APP_DEBUG` is off) |
 
 ---
@@ -835,6 +941,15 @@ Screenshots from Thunder Client / Postman are stored under `docs/screenshots/` a
 
 **Screenshot 11: Generic 500 error — no SQL/stack details exposed**  
 ![Thunder Client /api request returning 500 with only a generic error message and no SQL or stack trace](docs/screenshots/screenshot-11-generic-500.png)
+
+**Screenshot 12: GET /api/foods/random — random Filipino food**  
+![Insomnia GET /api/foods/random returning 200 with a randomly selected food and ingredients](docs/screenshots/screenshot-12-foods-random.png)
+
+**Screenshot 13: GET /api/categories/counts — foods per category**  
+![Insomnia GET /api/categories/counts returning 200 with category_id, category_name, and food_count](docs/screenshots/screenshot-13-categories-counts.png)
+
+**Screenshot 14: Rate limiting — 429 Too Many Requests**  
+![Insomnia GET /api/foods returning 429 Too Many Requests when the rate limit is exceeded](docs/screenshots/screenshot-14-rate-limit-429.png)
 
 ---
 

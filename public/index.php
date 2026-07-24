@@ -52,6 +52,33 @@ function serverErrorResponse(Response $response): Response {
 }
 
 // ----------------------------
+// Helper: sanitize free-text input (trim + strip control chars; keep Unicode)
+// ----------------------------
+function sanitizeString(string $value): string {
+    $value = trim($value);
+    // Remove null bytes and other C0/C1 control characters except common whitespace
+    $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value) ?? '';
+    return trim($value);
+}
+
+// ----------------------------
+// Helper: parse a positive integer ID from a route/query value
+// ----------------------------
+function parsePositiveIntId($value): ?int {
+    if (is_int($value)) {
+        return $value > 0 ? $value : null;
+    }
+
+    $str = trim((string) $value);
+    if ($str === '' || !ctype_digit($str)) {
+        return null;
+    }
+
+    $id = (int) $str;
+    return $id > 0 ? $id : null;
+}
+
+// ----------------------------
 // Helper: attach ingredients list to each food row
 // ----------------------------
 function attachIngredients(PDO $pdo, array $foods): array {
@@ -82,16 +109,23 @@ function validateFoodPayload(PDO $pdo, ?array $data): array {
         ];
     }
 
-    $foodName     = isset($data['food_name']) ? trim((string) $data['food_name']) : '';
-    $instructions = isset($data['instructions']) ? trim((string) $data['instructions']) : '';
-    $categoryId   = $data['category_id'] ?? null;
-    $originId     = $data['origin_id'] ?? null;
+    $foodName      = isset($data['food_name']) ? sanitizeString((string) $data['food_name']) : '';
+    $instructions  = isset($data['instructions']) ? sanitizeString((string) $data['instructions']) : '';
+    $categoryId    = $data['category_id'] ?? null;
+    $originId      = $data['origin_id'] ?? null;
     $ingredientIds = $data['ingredient_ids'] ?? [];
 
     if ($foodName === '' || mb_strlen($foodName) < 2) {
         return [
             'ok'      => false,
             'message' => 'food_name must be at least 2 characters.'
+        ];
+    }
+
+    if (mb_strlen($foodName) > 255) {
+        return [
+            'ok'      => false,
+            'message' => 'food_name must be at most 255 characters.'
         ];
     }
 
@@ -208,6 +242,79 @@ function requireToken(Request $request, RequestHandler $handler): Response {
     return $handler->handle($request);
 }
 
+// ----------------------------
+// D. Rate Limiting Middleware (per client IP)
+// ----------------------------
+function rateLimit(Request $request, RequestHandler $handler): Response {
+    $maxRequests = defined('RATE_LIMIT_MAX')
+        ? (int) RATE_LIMIT_MAX
+        : (int) (getenv('RATE_LIMIT_MAX') !== false && getenv('RATE_LIMIT_MAX') !== ''
+            ? getenv('RATE_LIMIT_MAX')
+            : 120);
+    $windowSeconds = defined('RATE_LIMIT_WINDOW')
+        ? (int) RATE_LIMIT_WINDOW
+        : (int) (getenv('RATE_LIMIT_WINDOW') !== false && getenv('RATE_LIMIT_WINDOW') !== ''
+            ? getenv('RATE_LIMIT_WINDOW')
+            : 60);
+
+    // Allow disabling via RATE_LIMIT_MAX=0
+    if ($maxRequests <= 0 || $windowSeconds <= 0) {
+        return $handler->handle($request);
+    }
+
+    $serverParams = $request->getServerParams();
+    $ip = $serverParams['REMOTE_ADDR'] ?? 'unknown';
+    $key = hash('sha256', $ip);
+    $dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'filipino_cookbook_rate_limit';
+
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+
+    $file = $dir . DIRECTORY_SEPARATOR . $key . '.json';
+    $now = time();
+    $windowStart = $now - $windowSeconds;
+    $timestamps = [];
+
+    if (is_file($file)) {
+        $raw = @file_get_contents($file);
+        $decoded = json_decode((string) $raw, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $ts) {
+                if (is_int($ts) && $ts >= $windowStart) {
+                    $timestamps[] = $ts;
+                }
+            }
+        }
+    }
+
+    if (count($timestamps) >= $maxRequests) {
+        $oldest = $timestamps[0] ?? $now;
+        $retryAfter = max(1, ($oldest + $windowSeconds) - $now);
+        $response = jsonResponse(new SlimResponse(), [
+            'status'  => 'error',
+            'message' => 'Too many requests. Please try again later.'
+        ], 429);
+        return $response
+            ->withHeader('Retry-After', (string) $retryAfter)
+            ->withHeader('X-RateLimit-Limit', (string) $maxRequests)
+            ->withHeader('X-RateLimit-Remaining', '0');
+    }
+
+    $timestamps[] = $now;
+    @file_put_contents($file, json_encode(array_values($timestamps)), LOCK_EX);
+
+    $response = $handler->handle($request);
+    $remaining = max(0, $maxRequests - count($timestamps));
+
+    return $response
+        ->withHeader('X-RateLimit-Limit', (string) $maxRequests)
+        ->withHeader('X-RateLimit-Remaining', (string) $remaining);
+}
+
+// Apply rate limiting to all routes (runs before route handlers)
+$app->add('rateLimit');
+
 // ============================================================
 // 1. Public Welcome Route (no token required)
 // ============================================================
@@ -251,7 +358,14 @@ $app->group('/api', function ($group) {
     $group->get('/foods/search/{name}', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $name = '%' . $args['name'] . '%';
+            $name = sanitizeString((string) ($args['name'] ?? ''));
+
+            if ($name === '') {
+                return jsonResponse($response, [
+                    'status'  => 'error',
+                    'message' => 'Search name is required.'
+                ], 400);
+            }
 
             $stmt = $pdo->prepare("
                 SELECT f.food_id, f.food_name, c.category_name, o.origin_name, f.instructions
@@ -261,7 +375,7 @@ $app->group('/api', function ($group) {
                 WHERE f.food_name LIKE ?
                 ORDER BY f.food_name
             ");
-            $stmt->execute([$name]);
+            $stmt->execute(['%' . $name . '%']);
             $foods = $stmt->fetchAll();
 
             if (empty($foods)) {
@@ -283,7 +397,7 @@ $app->group('/api', function ($group) {
     $group->get('/foods/category/{name}', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $name = trim((string) $args['name']);
+            $name = sanitizeString((string) ($args['name'] ?? ''));
 
             if ($name === '') {
                 return jsonResponse($response, [
@@ -333,7 +447,7 @@ $app->group('/api', function ($group) {
     $group->get('/foods/origin/{name}', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $name = trim((string) $args['name']);
+            $name = sanitizeString((string) ($args['name'] ?? ''));
 
             if ($name === '') {
                 return jsonResponse($response, [
@@ -378,14 +492,45 @@ $app->group('/api', function ($group) {
     });
 
     // --------------------------------------------------------
+    // 5b. Get a Random Filipino Food  (BEFORE /foods/{id})
+    // --------------------------------------------------------
+    $group->get('/foods/random', function (Request $request, Response $response) {
+        try {
+            $pdo = getDbConnection();
+
+            $stmt = $pdo->query("
+                SELECT f.food_id, f.food_name, c.category_name, o.origin_name, f.instructions
+                FROM foods f
+                LEFT JOIN categories c ON f.category_id = c.category_id
+                LEFT JOIN origins o ON f.origin_id = o.origin_id
+                ORDER BY RAND()
+                LIMIT 1
+            ");
+            $food = $stmt->fetch();
+
+            if (!$food) {
+                return jsonResponse($response, [
+                    'status'  => 'error',
+                    'message' => 'No foods available'
+                ], 404);
+            }
+
+            $foods = attachIngredients($pdo, [$food]);
+            return jsonResponse($response, $foods[0]);
+        } catch (Throwable $e) {
+            return serverErrorResponse($response);
+        }
+    });
+
+    // --------------------------------------------------------
     // 6. Get Food by ID  (AFTER static /foods/... routes)
     // --------------------------------------------------------
     $group->get('/foods/{id}', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $id = (int) $args['id'];
+            $id = parsePositiveIntId($args['id'] ?? null);
 
-            if ($id <= 0) {
+            if ($id === null) {
                 return jsonResponse($response, [
                     'status'  => 'error',
                     'message' => 'Invalid food ID.'
@@ -430,6 +575,36 @@ $app->group('/api', function ($group) {
     });
 
     // --------------------------------------------------------
+    // 7b. Get Number of Foods Under Each Category
+    // --------------------------------------------------------
+    $group->get('/categories/counts', function (Request $request, Response $response) {
+        try {
+            $pdo = getDbConnection();
+            $stmt = $pdo->query("
+                SELECT
+                    c.category_id,
+                    c.category_name,
+                    COUNT(f.food_id) AS food_count
+                FROM categories c
+                LEFT JOIN foods f ON f.category_id = c.category_id
+                GROUP BY c.category_id, c.category_name
+                ORDER BY c.category_id
+            ");
+            $rows = $stmt->fetchAll();
+
+            // Ensure food_count is an integer in the JSON response
+            foreach ($rows as &$row) {
+                $row['food_count'] = (int) $row['food_count'];
+            }
+            unset($row);
+
+            return jsonResponse($response, $rows);
+        } catch (Throwable $e) {
+            return serverErrorResponse($response);
+        }
+    });
+
+    // --------------------------------------------------------
     // 8. Get All Ingredients
     // --------------------------------------------------------
     $group->get('/ingredients', function (Request $request, Response $response) {
@@ -448,9 +623,9 @@ $app->group('/api', function ($group) {
     $group->get('/ingredients/{id}/foods', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $id = (int) $args['id'];
+            $id = parsePositiveIntId($args['id'] ?? null);
 
-            if ($id <= 0) {
+            if ($id === null) {
                 return jsonResponse($response, [
                     'status'  => 'error',
                     'message' => 'Invalid ingredient ID.'
@@ -549,9 +724,9 @@ $app->group('/api', function ($group) {
     $group->put('/foods/{id}', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $id = (int) $args['id'];
+            $id = parsePositiveIntId($args['id'] ?? null);
 
-            if ($id <= 0) {
+            if ($id === null) {
                 return jsonResponse($response, [
                     'status'  => 'error',
                     'message' => 'Invalid food ID.'
@@ -623,9 +798,9 @@ $app->group('/api', function ($group) {
     $group->delete('/foods/{id}', function (Request $request, Response $response, array $args) {
         try {
             $pdo = getDbConnection();
-            $id = (int) $args['id'];
+            $id = parsePositiveIntId($args['id'] ?? null);
 
-            if ($id <= 0) {
+            if ($id === null) {
                 return jsonResponse($response, [
                     'status'  => 'error',
                     'message' => 'Invalid food ID.'
