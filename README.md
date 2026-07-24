@@ -1,3 +1,38 @@
+## Database Setup
+
+- **Database name:** `filipino_cookbook_api`
+- **SQL file:** `database/filipino_foods_relational.sql`
+
+**Table relationships:** `categories` → `foods` ← `origins`, and `foods` → `food_ingredients` ← `ingredients` (many-to-many).
+
+### Import with phpMyAdmin
+
+1. Open phpMyAdmin (usually `http://localhost/phpmyadmin`).
+2. Click **New** / **Databases** and create a database named exactly `filipino_cookbook_api` (collation `utf8mb4_general_ci` or similar is fine).
+3. Select the `filipino_cookbook_api` database.
+4. Open the **Import** tab.
+5. Choose file `database/filipino_foods_relational.sql` from this project.
+6. Click **Go** / **Import** and confirm the tables and sample data were created.
+
+> Note: The SQL script also includes `CREATE DATABASE` / `USE filipino_cookbook_api`. If you already created the database in step 2, the import still works; the script will recreate/select it as written.
+
+### Import with MySQL CLI
+
+From the project root (adjust the MySQL user/password if needed):
+
+```bash
+mysql -u root -p < database/filipino_foods_relational.sql
+```
+
+Or, if you prefer creating the database first in the client, then importing while connected:
+
+```bash
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS filipino_cookbook_api;"
+mysql -u root -p filipino_cookbook_api < database/filipino_foods_relational.sql
+```
+
+---
+
 ## Optional API Enhancements
 
 This section documents the optional GET endpoints and security improvements added on top of the base Filipino Cookbook API.
