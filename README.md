@@ -2,6 +2,8 @@
 
 Slim Framework + PHP + MySQL API for Filipino dishes, with Bearer-token authentication.
 
+**Full API documentation:** see [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md).
+
 ## Configuration / Getting Started
 
 1. Clone this repository and open it in your editor.
