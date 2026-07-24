@@ -441,34 +441,34 @@ Use **Thunder Client** (VS Code/Cursor) or **Postman**. Replace the base URL if 
 Capture and paste screenshots below after you run the tests in Thunder Client or Postman.
 
 **Screenshot 1: GET /api/foods/search/Ado — successful search result**  
-_(insert screenshot here)_
+![Thunder Client GET /api/foods/search/Ado returning 200 with Adobo and related matches](docs/screenshots/screenshot-01-search-ado.png)
 
 **Screenshot 2: GET /api/foods/category/Soup — foods by category**  
-_(insert screenshot here)_
+![Thunder Client GET /api/foods/category/Soup returning 200 with Soup dishes and ingredients](docs/screenshots/screenshot-02-foods-by-category.png)
 
 **Screenshot 3: GET /api/foods/category/NotARealCategory — 404 category not found**  
-_(insert screenshot here)_
+![Thunder Client GET /api/foods/category/NotARealCategory returning 404 Category not found](docs/screenshots/screenshot-03-category-not-found.png)
 
 **Screenshot 4: GET /api/foods/origin/Bicol Region — foods by origin**  
-_(insert screenshot here)_
+![Thunder Client GET /api/foods/origin/Bicol Region returning 200 with Bicol Express and Laing](docs/screenshots/screenshot-04-foods-by-origin.png)
 
 **Screenshot 5: GET /api/ingredients/26/foods — foods by ingredient (Garlic)**  
-_(insert screenshot here)_
+![Thunder Client GET /api/ingredients/26/foods returning 200 with dishes that use Garlic](docs/screenshots/screenshot-05-foods-by-ingredient.png)
 
 **Screenshot 6: GET /api/ingredients/99999/foods — 404 ingredient not found**  
-_(insert screenshot here)_
+![Thunder Client GET /api/ingredients/99999/foods returning 404 Ingredient not found](docs/screenshots/screenshot-06-ingredient-not-found.png)
 
 **Screenshot 7: GET /api/foods/0 — 400 invalid food ID**  
-_(insert screenshot here)_
+![Thunder Client GET /api/foods/0 returning 400 Invalid food ID](docs/screenshots/screenshot-07-invalid-food-id.png)
 
 **Screenshot 8: POST /api/foods with bad category_id — 400 validation**  
-_(insert screenshot here)_
+![Thunder Client POST /api/foods with category_id 999 returning 400 Invalid category_id](docs/screenshots/screenshot-08-bad-category-id.png)
 
 **Screenshot 9: POST /api/foods with bad ingredient_id — 400 validation**  
-_(insert screenshot here)_
+![Thunder Client POST /api/foods with ingredient_id 9999 returning 400 Invalid ingredient_id](docs/screenshots/screenshot-09-bad-ingredient-id.png)
 
 **Screenshot 10: Missing or invalid Bearer token — 401 Unauthorized**  
-_(insert screenshot here)_
+![Thunder Client /api request without a valid Bearer token returning 401 Unauthorized](docs/screenshots/screenshot-10-unauthorized-token.png)
 
 **Screenshot 11: Generic 500 error — no SQL/stack details exposed**  
-_(insert screenshot here)_
+![Thunder Client /api request returning 500 with only a generic error message and no SQL or stack trace](docs/screenshots/screenshot-11-generic-500.png)
