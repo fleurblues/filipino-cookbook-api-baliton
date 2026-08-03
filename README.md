@@ -493,73 +493,110 @@ Use **Thunder Client** (VS Code/Cursor) or **Postman**. Set `{{baseUrl}}` to the
 
 **Steps for another student:**
 
-1. Import or create a new request collection named “Filipino Cookbook API — Enhancements”.
+1. Import or create a request collection named “Filipino Cookbook API”.
 2. Set the collection (or request) header: `Authorization: Bearer YOUR_API_TOKEN_HERE` (same value as in `config.php`).
 3. Confirm MySQL is running and the `filipino_cookbook_api` database is imported.
-4. Test the **search route fix** (must not be treated as `{id}`):
-   - `GET {{baseUrl}}/api/foods/search/Ado` → expect Adobo (and similar) with `200`.
-5. Test **foods by category**:
-   - `GET {{baseUrl}}/api/foods/category/Soup` → expect Soup dishes with `200`.
-   - `GET {{baseUrl}}/api/foods/category/NotARealCategory` → expect `404` with `"Category not found"`.
-6. Test **foods by origin**:
-   - `GET {{baseUrl}}/api/foods/origin/Bicol Region` (encode space as `%20` if needed) → expect Bicol Express and Laing with `200`.
-7. Test **foods by ingredient**:
-   - `GET {{baseUrl}}/api/ingredients/26/foods` → expect dishes containing Garlic with `200`.
-   - `GET {{baseUrl}}/api/ingredients/99999/foods` → expect `404` with `"Ingredient not found"`.
-8. Test **invalid food ID**:
-   - `GET {{baseUrl}}/api/foods/0` or `GET {{baseUrl}}/api/foods/-1` → expect `400` `"Invalid food ID."`.
-9. Test **POST validation**:
-   - `POST {{baseUrl}}/api/foods` with body using `category_id: 999` → expect `400` naming invalid `category_id`.
-   - `POST {{baseUrl}}/api/foods` with `ingredient_ids: [9999]` (and otherwise valid fields) → expect `400` naming invalid `ingredient_id`.
-10. Test **auth failure**:
-    - Same GET as step 5, but remove the `Authorization` header or use a wrong token → expect `401`.
-11. (Optional) Test **generic 500**:
-    - Temporarily break the DB connection settings, call any `/api` endpoint with a valid token → expect `500` with the generic message only (no SQL/stack). Restore settings when done.
+4. Test **welcome** (no token): `GET {{baseUrl}}/` → `200`.
+5. Test **list / detail**:
+   - `GET {{baseUrl}}/api/foods` → `200`
+   - `GET {{baseUrl}}/api/foods/1` → `200` (Adobo)
+6. Test **search / filters**:
+   - `GET {{baseUrl}}/api/foods/search/Ado` → `200`
+   - `GET {{baseUrl}}/api/foods/category/Soup` → `200`
+   - `GET {{baseUrl}}/api/foods/origin/Bicol Region` → `200`
+7. Test **random food**: `GET {{baseUrl}}/api/foods/random` → `200`
+8. Test **categories / ingredients**:
+   - `GET {{baseUrl}}/api/categories` → `200`
+   - `GET {{baseUrl}}/api/categories/counts` → `200` with `food_count`
+   - `GET {{baseUrl}}/api/ingredients` → `200`
+   - `GET {{baseUrl}}/api/ingredients/26/foods` → `200`
+9. Test **write endpoints** (create → update → delete a temporary food):
+   - `POST {{baseUrl}}/api/foods` with a valid body → `201`
+   - `PUT {{baseUrl}}/api/foods/{id}` → `200`
+   - `DELETE {{baseUrl}}/api/foods/{id}` → `200`
+10. Test **validation / not found**:
+    - `GET {{baseUrl}}/api/foods/category/NotARealCategory` → `404`
+    - `GET {{baseUrl}}/api/ingredients/99999/foods` → `404`
+    - `GET {{baseUrl}}/api/foods/0` → `400`
+    - `POST` with `category_id: 999` or `ingredient_ids: [9999]` → `400`
+11. Test **auth failure**: remove/wrong token → `401`
+12. Test **rate limiting**: temporarily set `RATE_LIMIT_MAX=3`, send 4+ quick requests → `429`, then restore the limit.
+13. (Optional) Test **generic 500**: temporarily break DB settings → `500` with generic message only; restore afterward.
 
 ---
 
 ### 5. Screenshots of Successful Testing
 
-Screenshots from Thunder Client / Postman are stored under `docs/screenshots/` and linked below.
+Screenshots from Thunder Client / Postman are stored under `./docs/screenshots/` and linked below. Numbering follows documented endpoint order, then security/error cases.
 
-**Screenshot 1: GET /api/foods/search/Ado — successful search result**  
-![Thunder Client GET /api/foods/search/Ado returning 200 with Adobo and related matches](docs/screenshots/screenshot-01-search-ado.png)
+> Tip for VS Code: open this file and press `Ctrl+Shift+V` (Markdown Preview) to view the images. If a preview looks stale, close it and reopen, or run **Developer: Reload Window**.
 
-**Screenshot 2: GET /api/foods/category/Soup — foods by category**  
-![Thunder Client GET /api/foods/category/Soup returning 200 with Soup dishes and ingredients](docs/screenshots/screenshot-02-foods-by-category.png)
+#### Core endpoints (success)
 
-**Screenshot 3: GET /api/foods/category/NotARealCategory — 404 category not found**  
-![Thunder Client GET /api/foods/category/NotARealCategory returning 404 Category not found](docs/screenshots/screenshot-03-category-not-found.png)
+**Screenshot 1: `GET /` — public welcome (no token)**  
+![GET / returning 200 welcome message](./docs/screenshots/screenshot-01-welcome.png)
 
-**Screenshot 4: GET /api/foods/origin/Bicol Region — foods by origin**  
-![Thunder Client GET /api/foods/origin/Bicol Region returning 200 with Bicol Express and Laing](docs/screenshots/screenshot-04-foods-by-origin.png)
+**Screenshot 2: `GET /api/foods` — list all foods**  
+![GET /api/foods returning 200 with foods and ingredients](./docs/screenshots/screenshot-02-list-foods.png)
 
-**Screenshot 5: GET /api/ingredients/26/foods — foods by ingredient (Garlic)**  
-![Thunder Client GET /api/ingredients/26/foods returning 200 with dishes that use Garlic](docs/screenshots/screenshot-05-foods-by-ingredient.png)
+**Screenshot 3: `GET /api/foods/{id}` — food details by ID**  
+![GET /api/foods/1 returning 200 with Adobo details](./docs/screenshots/screenshot-03-food-by-id.png)
 
-**Screenshot 6: GET /api/ingredients/99999/foods — 404 ingredient not found**  
-![Thunder Client GET /api/ingredients/99999/foods returning 404 Ingredient not found](docs/screenshots/screenshot-06-ingredient-not-found.png)
+**Screenshot 4: `GET /api/foods/search/{name}` — search by name**  
+![GET /api/foods/search/Ado returning 200 with Adobo matches](./docs/screenshots/screenshot-04-search-ado.png)
 
-**Screenshot 7: GET /api/foods/0 — 400 invalid food ID**  
-![Thunder Client GET /api/foods/0 returning 400 Invalid food ID](docs/screenshots/screenshot-07-invalid-food-id.png)
+**Screenshot 5: `GET /api/foods/category/{name}` — foods by category**  
+![GET /api/foods/category/Soup returning 200 with Soup dishes](./docs/screenshots/screenshot-05-foods-by-category.png)
 
-**Screenshot 8: POST /api/foods with bad category_id — 400 validation**  
-![Thunder Client POST /api/foods with category_id 999 returning 400 Invalid category_id](docs/screenshots/screenshot-08-bad-category-id.png)
+**Screenshot 6: `GET /api/foods/origin/{name}` — foods by origin**  
+![GET /api/foods/origin/Bicol Region returning 200 with regional dishes](./docs/screenshots/screenshot-06-foods-by-origin.png)
 
-**Screenshot 9: POST /api/foods with bad ingredient_id — 400 validation**  
-![Thunder Client POST /api/foods with ingredient_id 9999 returning 400 Invalid ingredient_id](docs/screenshots/screenshot-09-bad-ingredient-id.png)
+**Screenshot 7: `GET /api/foods/random` — random Filipino food**  
+![GET /api/foods/random returning 200 with a randomly selected food](./docs/screenshots/screenshot-07-foods-random.png)
 
-**Screenshot 10: Missing or invalid Bearer token — 401 Unauthorized**  
-![Thunder Client /api request without a valid Bearer token returning 401 Unauthorized](docs/screenshots/screenshot-10-unauthorized-token.png)
+**Screenshot 8: `GET /api/categories` — list categories**  
+![GET /api/categories returning 200 with all categories](./docs/screenshots/screenshot-08-list-categories.png)
 
-**Screenshot 11: Generic 500 error — no SQL/stack details exposed**  
-![Thunder Client /api request returning 500 with only a generic error message and no SQL or stack trace](docs/screenshots/screenshot-11-generic-500.png)
+**Screenshot 9: `GET /api/categories/counts` — foods per category**  
+![GET /api/categories/counts returning 200 with food_count per category](./docs/screenshots/screenshot-09-categories-counts.png)
 
-**Screenshot 12: GET /api/foods/random — random Filipino food**  
-![Insomnia GET /api/foods/random returning 200 with a randomly selected food and ingredients](docs/screenshots/screenshot-12-foods-random.png)
+**Screenshot 10: `GET /api/ingredients` — list ingredients**  
+![GET /api/ingredients returning 200 with ingredient rows](./docs/screenshots/screenshot-10-list-ingredients.png)
 
-**Screenshot 13: GET /api/categories/counts — foods per category**  
-![Insomnia GET /api/categories/counts returning 200 with category_id, category_name, and food_count](docs/screenshots/screenshot-13-categories-counts.png)
+**Screenshot 11: `GET /api/ingredients/{id}/foods` — foods by ingredient**  
+![GET /api/ingredients/26/foods returning 200 with dishes using Garlic](./docs/screenshots/screenshot-11-foods-by-ingredient.png)
 
-**Screenshot 14: Rate limiting — 429 Too Many Requests**  
-![Insomnia GET /api/foods returning 429 Too Many Requests when the rate limit is exceeded](docs/screenshots/screenshot-14-rate-limit-429.png)
+**Screenshot 12: `POST /api/foods` — create food (success `201`)**  
+![POST /api/foods returning 201 Food added successfully](./docs/screenshots/screenshot-12-post-food.png)
+
+**Screenshot 13: `PUT /api/foods/{id}` — update food (success `200`)**  
+![PUT /api/foods/{id} returning 200 Food updated successfully](./docs/screenshots/screenshot-13-put-food.png)
+
+**Screenshot 14: `DELETE /api/foods/{id}` — delete food (success `200`)**  
+![DELETE /api/foods/{id} returning 200 Food deleted successfully](./docs/screenshots/screenshot-14-delete-food.png)
+
+#### Validation, auth, and security
+
+**Screenshot 15: Category not found — `404`**  
+![GET /api/foods/category/NotARealCategory returning 404 Category not found](./docs/screenshots/screenshot-15-category-not-found.png)
+
+**Screenshot 16: Ingredient not found — `404`**  
+![GET /api/ingredients/99999/foods returning 404 Ingredient not found](./docs/screenshots/screenshot-16-ingredient-not-found.png)
+
+**Screenshot 17: Invalid food ID — `400`**  
+![GET /api/foods/0 returning 400 Invalid food ID](./docs/screenshots/screenshot-17-invalid-food-id.png)
+
+**Screenshot 18: Invalid `category_id` on create — `400`**  
+![POST /api/foods with category_id 999 returning 400 validation error](./docs/screenshots/screenshot-18-bad-category-id.png)
+
+**Screenshot 19: Invalid `ingredient_id` on create — `400`**  
+![POST /api/foods with ingredient_id 9999 returning 400 validation error](./docs/screenshots/screenshot-19-bad-ingredient-id.png)
+
+**Screenshot 20: Missing/invalid Bearer token — `401`**  
+![API request without a valid Bearer token returning 401 Unauthorized](./docs/screenshots/screenshot-20-unauthorized-token.png)
+
+**Screenshot 21: Rate limiting — `429`**  
+![GET /api/foods returning 429 Too Many Requests when the rate limit is exceeded](./docs/screenshots/screenshot-21-rate-limit-429.png)
+
+**Screenshot 22: Generic server error — `500`**  
+![API request returning 500 with only a generic error message and no SQL or stack trace](./docs/screenshots/screenshot-22-generic-500.png)
